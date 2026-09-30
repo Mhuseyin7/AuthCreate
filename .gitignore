@@ -1,0 +1,6 @@
+authcrate.exe
+coverage.out
+web/node_modules/
+web/dist/
+.tools/
+web/*.tsbuildinfo

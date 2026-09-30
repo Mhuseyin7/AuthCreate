@@ -1,0 +1,11 @@
+services:
+  authcrate:
+    build: .
+    ports: ["8080:8080"]
+    environment:
+      AUTHCRATE_ISSUER: http://localhost:8080
+    healthcheck:
+      test: ["CMD", "/authcrate", "doctor"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
