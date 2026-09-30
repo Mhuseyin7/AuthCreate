@@ -1,5 +1,8 @@
 # AuthCrate
 
+[![CI](https://github.com/Mhuseyin7/AuthCreate/actions/workflows/ci.yml/badge.svg)](https://github.com/Mhuseyin7/AuthCreate/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 ### Authentication sandbox for developers
 
 AuthCrate, **muhammedkoca.com.tr tarafından geliştirilmiş open-source bir developer authentication sandbox’ıdır.** Local development, automated testing, OAuth/OIDC debugging ve controlled failure simulation için gerçek protocol davranışı sağlar.
