@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/subtle"
+	"net"
 	"net/http"
 	"strings"
 )
@@ -11,6 +12,10 @@ import (
 // separately configured bearer credential and rejects cross-origin mutations.
 func (s *Server) admin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.mode != "SELF_HOSTED" && !isLoopbackRequest(r) {
+			respond(w, http.StatusForbidden, map[string]string{"error": "development control plane is local-only"})
+			return
+		}
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			if origin := r.Header.Get("Origin"); origin != "" && origin != s.issuer {
 				respond(w, http.StatusForbidden, map[string]string{"error": "cross-origin control request rejected"})
@@ -27,4 +32,13 @@ func (s *Server) admin(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func isLoopbackRequest(r *http.Request) bool {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }

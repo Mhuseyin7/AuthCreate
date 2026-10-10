@@ -107,3 +107,25 @@ func TestUserInfoRejectsAlgorithmConfusion(t *testing.T) {
 		t.Fatalf("alg=none accepted: %d", resp.StatusCode)
 	}
 }
+
+func TestAdminRejectsUnknownScenario(t *testing.T) {
+	s, _ := newServer("http://issuer.test")
+	r := httptest.NewRequest(http.MethodPost, "http://issuer.test/admin/scenario", strings.NewReader(`{"name":"not-real"}`))
+	r.RemoteAddr = "127.0.0.1:4242"
+	w := httptest.NewRecorder()
+	s.routes().ServeHTTP(w, r)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("unknown scenario returned %d", w.Code)
+	}
+}
+
+func TestDevelopmentAdminIsLoopbackOnly(t *testing.T) {
+	s, _ := newServer("http://issuer.test")
+	r := httptest.NewRequest(http.MethodGet, "http://issuer.test/admin/events", nil)
+	r.RemoteAddr = "198.51.100.20:4242"
+	w := httptest.NewRecorder()
+	s.routes().ServeHTTP(w, r)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("remote admin request returned %d", w.Code)
+	}
+}

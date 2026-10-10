@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/subtle"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
@@ -523,29 +524,35 @@ func (s *Server) adminScenario(w http.ResponseWriter, r *http.Request) {
 		respond(w, 400, map[string]string{"error": "invalid json"})
 		return
 	}
-	sc := scenario(x.Name)
+	sc, ok := scenario(x.Name)
+	if !ok {
+		respond(w, http.StatusBadRequest, map[string]string{"error": "unknown scenario"})
+		return
+	}
 	s.mu.Lock()
 	s.scenario = sc
 	s.event("scenario.used", map[string]string{"name": x.Name})
 	s.mu.Unlock()
 	respond(w, 200, sc)
 }
-func scenario(n string) Scenario {
+func scenario(n string) (Scenario, bool) {
 	switch n {
 	case "mfa-required":
-		return Scenario{Name: n, MFA: true}
+		return Scenario{Name: n, MFA: true}, true
 	case "expired-session":
-		return Scenario{Name: n, ExpireSession: true}
+		return Scenario{Name: n, ExpireSession: true}, true
 	case "scope-denied":
-		return Scenario{Name: n, AuthorizationError: "invalid_scope"}
+		return Scenario{Name: n, AuthorizationError: "invalid_scope"}, true
 	case "provider-down":
-		return Scenario{Name: n, AuthorizationError: "temporarily_unavailable"}
+		return Scenario{Name: n, AuthorizationError: "temporarily_unavailable"}, true
 	case "slow-provider":
-		return Scenario{Name: n, TokenDelay: 2 * time.Second}
+		return Scenario{Name: n, TokenDelay: 2 * time.Second}, true
 	case "refresh-expired":
-		return Scenario{Name: n, RevokeRefresh: true}
+		return Scenario{Name: n, RevokeRefresh: true}, true
+	case "happy-path":
+		return Scenario{Name: n}, true
 	default:
-		return Scenario{Name: "happy-path"}
+		return Scenario{}, false
 	}
 }
 func (s *Server) adminEvents(w http.ResponseWriter, r *http.Request) {
@@ -587,7 +594,7 @@ func (s *Server) authenticateClient(r *http.Request) *Client {
 		}
 		return c
 	}
-	if c.SecretHash == "" || secretHash(sec) != c.SecretHash {
+	if c.SecretHash == "" || subtle.ConstantTimeCompare([]byte(secretHash(sec)), []byte(c.SecretHash)) != 1 {
 		return nil
 	}
 	return c
