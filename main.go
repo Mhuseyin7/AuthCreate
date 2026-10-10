@@ -4,10 +4,8 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
-	"crypto/subtle"
 	"crypto/x509"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -22,6 +20,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/crypto/bcrypt"
 )
 
 const version = "0.1.0"
@@ -594,7 +593,7 @@ func (s *Server) authenticateClient(r *http.Request) *Client {
 		}
 		return c
 	}
-	if c.SecretHash == "" || subtle.ConstantTimeCompare([]byte(secretHash(sec)), []byte(c.SecretHash)) != 1 {
+	if c.SecretHash == "" || !verifySecret(sec, c.SecretHash) {
 		return nil
 	}
 	return c
@@ -626,7 +625,14 @@ func contains(xs []string, x string) bool {
 	}
 	return false
 }
-func secretHash(v string) string { x := sha256.Sum256([]byte(v)); return hex.EncodeToString(x[:]) }
+func hashSecret(v string) (string, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(v), bcrypt.DefaultCost)
+	return string(hash), err
+}
+
+func verifySecret(value, encodedHash string) bool {
+	return bcrypt.CompareHashAndPassword([]byte(encodedHash), []byte(value)) == nil
+}
 func random(n int) string {
 	b := make([]byte, n)
 	if _, e := rand.Read(b); e != nil {

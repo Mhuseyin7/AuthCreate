@@ -129,3 +129,16 @@ func TestDevelopmentAdminIsLoopbackOnly(t *testing.T) {
 		t.Fatalf("remote admin request returned %d", w.Code)
 	}
 }
+
+func TestClientSecretsUsePasswordHashing(t *testing.T) {
+	hash, err := hashSecret("test-secret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(hash, "test-secret") || !strings.HasPrefix(hash, "$2") {
+		t.Fatalf("secret is not stored as bcrypt hash: %q", hash)
+	}
+	if !verifySecret("test-secret", hash) || verifySecret("wrong-secret", hash) {
+		t.Fatal("secret verification behavior is incorrect")
+	}
+}
