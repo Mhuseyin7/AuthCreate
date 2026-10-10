@@ -4,10 +4,8 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
-	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -246,7 +244,7 @@ func (s *Server) authorize(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method == "GET" {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		io.WriteString(w, loginHTML(q))
+		io.WriteString(w, loginHTML())
 		return
 	}
 	if err := r.ParseForm(); err != nil {
@@ -256,7 +254,7 @@ func (s *Server) authorize(w http.ResponseWriter, r *http.Request) {
 	subject := r.Form.Get("user")
 	if scenario.MFA && r.Form.Get("mfa") != "123456" {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		io.WriteString(w, mfaHTML(q, subject))
+		io.WriteString(w, mfaHTML(subject))
 		return
 	}
 	s.mu.Lock()
@@ -287,10 +285,10 @@ func (s *Server) authorize(w http.ResponseWriter, r *http.Request) {
 	u.RawQuery = v.Encode()
 	http.Redirect(w, r, u.String(), http.StatusFound)
 }
-func loginHTML(q url.Values) string {
+func loginHTML() string {
 	return `<!doctype html><title>AuthCrate login</title><h1>Authenticate with AuthCrate</h1><p>Development identities; no real credentials are used.</p><form method="post"><label>User <select name="user"><option>normal-user</option><option>admin-user</option><option>unverified-user</option><option>mfa-user</option><option>banned-user</option></select></label><button>Continue</button></form>`
 }
-func mfaHTML(q url.Values, subject string) string {
+func mfaHTML(subject string) string {
 	return `<h1>MFA Required</h1><p>Development code: <code>123456</code></p><form method="post"><input type="hidden" name="user" value="` + subject + `"><label>Code <input name="mfa" autocomplete="one-time-code"></label><button>Verify</button></form>`
 }
 func (s *Server) token(w http.ResponseWriter, r *http.Request) {
@@ -667,8 +665,4 @@ func respond(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(v)
-}
-func publicPEM(k *rsa.PrivateKey) string {
-	b := x509.MarshalPKCS1PublicKey(&k.PublicKey)
-	return string(pem.EncodeToMemory(&pem.Block{Type: "RSA PUBLIC KEY", Bytes: b}))
 }
