@@ -142,3 +142,10 @@ func TestClientSecretsUsePasswordHashing(t *testing.T) {
 		t.Fatal("secret verification behavior is incorrect")
 	}
 }
+
+func TestMFAFormEscapesSubject(t *testing.T) {
+	form := mfaHTML(`"><script>alert(1)</script>`)
+	if strings.Contains(form, `<script>`) || !strings.Contains(form, `&#34;`) {
+		t.Fatal("MFA form reflected an unescaped subject")
+	}
+}

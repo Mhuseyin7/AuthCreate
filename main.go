@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"html"
 	"errors"
 	"fmt"
 	"io"
@@ -194,6 +195,7 @@ func securityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "no-referrer")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; form-action 'self'; frame-ancestors 'none'")
 		next.ServeHTTP(w, r)
 	})
 }
@@ -289,7 +291,7 @@ func loginHTML() string {
 	return `<!doctype html><title>AuthCrate login</title><h1>Authenticate with AuthCrate</h1><p>Development identities; no real credentials are used.</p><form method="post"><label>User <select name="user"><option>normal-user</option><option>admin-user</option><option>unverified-user</option><option>mfa-user</option><option>banned-user</option></select></label><button>Continue</button></form>`
 }
 func mfaHTML(subject string) string {
-	return `<h1>MFA Required</h1><p>Development code: <code>123456</code></p><form method="post"><input type="hidden" name="user" value="` + subject + `"><label>Code <input name="mfa" autocomplete="one-time-code"></label><button>Verify</button></form>`
+	return `<h1>MFA Required</h1><p>Development code: <code>123456</code></p><form method="post"><input type="hidden" name="user" value="` + html.EscapeString(subject) + `"><label>Code <input name="mfa" autocomplete="one-time-code"></label><button>Verify</button></form>`
 }
 func (s *Server) token(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
