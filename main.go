@@ -276,8 +276,8 @@ func (s *Server) authorize(w http.ResponseWriter, r *http.Request) {
 	sid := random(32)
 	s.codes[code] = &Code{code, cid, redir, subject, scopes, q.Get("code_challenge"), q.Get("nonce"), now.Add(60 * time.Second), false, now}
 	s.sessions[sid] = &Session{sid, subject, now.Add(8 * time.Hour)}
-	s.event("login.success", map[string]string{"subject": subject})
-	s.event("authorization.code.issued", map[string]string{"client_id": cid, "subject": subject})
+	s.eventLocked("login.success", map[string]string{"subject": subject})
+	s.eventLocked("authorization.code.issued", map[string]string{"client_id": cid, "subject": subject})
 	s.mu.Unlock()
 	http.SetCookie(w, &http.Cookie{Name: "authcrate_session", Value: sid, Path: "/", HttpOnly: true, Secure: strings.HasPrefix(s.issuer, "https://"), SameSite: http.SameSiteLaxMode, Expires: now.Add(8 * time.Hour)})
 	u, _ := url.Parse(redir)
@@ -342,7 +342,7 @@ func (s *Server) exchangeCode(w http.ResponseWriter, r *http.Request, c *Client,
 	}
 	code.Used = true
 	user := s.users[code.Subject]
-	s.event("token.exchanged", map[string]string{"client_id": c.ID})
+	s.eventLocked("token.exchanged", map[string]string{"client_id": c.ID})
 	s.mu.Unlock()
 	s.issue(w, c, user, code.Scope, code.Nonce, code.AuthTime, sc)
 }
@@ -353,7 +353,7 @@ func (s *Server) exchangeRefresh(w http.ResponseWriter, r *http.Request, c *Clie
 	if t == nil || t.Used || t.Revoked || time.Now().After(t.Expires) || t.ClientID != c.ID {
 		if t != nil {
 			t.Revoked = true
-			s.event("refresh.reuse_detected", map[string]string{"client_id": c.ID})
+			s.eventLocked("refresh.reuse_detected", map[string]string{"client_id": c.ID})
 		}
 		s.mu.Unlock()
 		tokenErr(w, "invalid_grant")
@@ -368,7 +368,7 @@ func (s *Server) exchangeRefresh(w http.ResponseWriter, r *http.Request, c *Clie
 	}
 	user := s.users[t.Subject]
 	scope := t.Scope
-	s.event("refresh.rotated", map[string]string{"client_id": c.ID})
+	s.eventLocked("refresh.rotated", map[string]string{"client_id": c.ID})
 	s.mu.Unlock()
 	s.issue(w, c, user, scope, "", time.Now(), sc)
 }
@@ -481,7 +481,7 @@ func (s *Server) revoke(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	if t := s.refresh[r.Form.Get("token")]; t != nil && t.ClientID == c.ID {
 		t.Revoked = true
-		s.event("token.revoked", map[string]string{"client_id": c.ID})
+		s.eventLocked("token.revoked", map[string]string{"client_id": c.ID})
 	}
 	s.mu.Unlock()
 	w.WriteHeader(200)
@@ -530,7 +530,7 @@ func (s *Server) adminScenario(w http.ResponseWriter, r *http.Request) {
 	}
 	s.mu.Lock()
 	s.scenario = sc
-	s.event("scenario.used", map[string]string{"name": x.Name})
+	s.eventLocked("scenario.used", map[string]string{"name": x.Name})
 	s.mu.Unlock()
 	respond(w, 200, sc)
 }
@@ -611,6 +611,13 @@ func (s *Server) scopes(c *Client, v string) (string, bool) {
 	return v, true
 }
 func (s *Server) event(t string, d map[string]string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.eventLocked(t, d)
+}
+
+// eventLocked appends an event while the caller owns s.mu.
+func (s *Server) eventLocked(t string, d map[string]string) {
 	s.events = append(s.events, Event{time.Now(), t, d})
 	if len(s.events) > 1000 {
 		s.events = s.events[len(s.events)-1000:]
